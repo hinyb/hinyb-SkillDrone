@@ -22,6 +22,8 @@ for _, name in ipairs(names) do
 end
 
 local DRONEOFFSET = 48
+local RANGEOFFSET = -40
+local PICKUPRANGE = 40
 
 local function init()
     local get_random = Utils.random_skill_id()
@@ -37,9 +39,12 @@ local function init()
         [141] = true, -- robomandoV
         [142] = true -- robomandoVBoosted
     }
+    local function drone_skill_check(skill_id)
+        return Utils.is_damage_skill(skill_id) and not drone_skill_blacklist[skill_id]
+    end
     local function get_drone_random_skill_id()
         local random_skill_id = get_random()
-        while not Utils.is_damage_skill(random_skill_id) or drone_skill_blacklist[random_skill_id] do
+        while not drone_skill_check(random_skill_id) do
             random_skill_id = get_random()
         end
         return random_skill_id
@@ -57,12 +62,15 @@ local function init()
         end
         return x_range_min
     end
-
+    local function is_in_range(x1, y1, x2, y2, range)
+        return math.abs(x1 - x2) <= range and math.abs(y1 - y2) <= range
+    end
     local moon = Resources.sprite_load("hinyb", "moon", _ENV["!plugins_mod_folder_path"] .. "/sprites/moon.png")
     local star = Resources.sprite_load("hinyb", "star", _ENV["!plugins_mod_folder_path"] .. "/sprites/star.png")
 
     local oSkillDrone = Object.new("hinyb", "oSkillDrone", Object.PARENT.drone)
     oSkillDrone:onCreate(function(self)
+        -- need to draw a sprite, but I am lazy.
         self.sprite_idle = self.sprite_index
         self.sprite_idle_broken = self.sprite_index
         self.sprite_shoot1 = self.sprite_index
@@ -70,16 +78,16 @@ local function init()
         self:drone_stats_init(200)
         self:init_actor_late()
         CompatibilityPatch.set_compat(self.value)
-        --gm.actor_skill_set(self.value, Utils.get_random(0, 3), get_drone_random_skill_id())
-        gm.actor_skill_set(self.value, Utils.get_random(0, 3), 92)
+        gm.actor_skill_set(self.value, Utils.get_random(0, 3), get_drone_random_skill_id())
         self.x_range = 1200
         self.x_range_min = get_x_range_min(self.value)
         self.y_offset = 0
         self.image_alpha = 0.5
+        self.cache_skill_pickup_id = -4
 
-        -- to fix combo attack loaderZ and pilotZ
-        self.z_tap_buffered = 1
-        
+        -- because the sprite is empty
+        gm._mod_instance_set_mask(self.value, gm.constants.sPMask)
+
         -- I just find all skills which use hold_facing_direction_xscale have this bug.
         -- Need time to find a better solution.
         Instance_ext.add_callback(self.value, "pre_skill_activate", "hold_facing_direction_xscale_fix",
@@ -106,92 +114,66 @@ local function init()
             return
         end
 
+        -- to fix combo attack loaderZ and pilotZ.
+        -- It will reset on client. So I put it here.
+        self.z_tap_buffered = 1
+
         self:skill_system_update()
 
-        --[[
-        if self.is_local then
-            if not gm.instance_exists(self.target) then
-                local x = (self.x + self.master.x) / 2
-                local y = (self.y + self.master.y) / 2
-                local new_target = gm.find_target_nearest(x, y, 2)
-                if new_target == -4 or self:distance_to_object(new_target) > self.x_range then
-                    self.state = 0
-                    return
-                else
-                    self.state = 1
-                    self.target = new_target
-                end
-            else
-                local target_parent = self.target.parent
-                local target_x = Utils.clamp(self.x, target_parent.bbox_left, target_parent.bbox_right)
-                local target_y = Utils.clamp(self.y, target_parent.bbox_top, target_parent.bbox_bottom)
-                if gm.point_distance(master.x, master.y, target_x, target_y) > 0 then
-                    if math.abs(master.x - target_x) < self.x_range and math.abs(master.y - target_y) < self.y_range then
-                        Utils.set_and_sync_inst_from_table(self.value, {
-                            target = -4,
-                            state = 0
-                        })
-                    end
-                end
-            end
-        end]]
         local image_index = self.image_index
         local image_number = self.image_number
-        --log.info(image_index, image_number, math.abs(image_index - image_number + 1), math.abs(image_index - image_number + 1) <= 0.0001)
-        if self.state_strafe_half == 1.0 or math.abs(image_index - image_number + 1) <= 0.0001 or image_index >= image_number - 1 then
+        if self.state_strafe_half == 1.0 or math.abs(image_index - image_number + 1) <= 0.0001 or image_index >=
+            image_number - 1 then
             self.sprite_index = oSkillDrone.obj_sprite
         end
         self.z_skill = 0
         self.x_skill = 0
         self.c_skill = 0
         self.v_skill = 0
+
         if self.state == 0 then
-            --self.sprite_index = oSkillDrone.obj_sprite
-            local lerp_factor = (1 - self.chase_motion_lerp) * 0.1111111111111111
-            self.x = Utils.lerp(self.x, master.ghost_x + self.xx, lerp_factor)
-            self.y = Utils.lerp(self.y, master.ghost_y + self.yy - 100 - DRONEOFFSET, lerp_factor) + self.yo
-            self.chase_motion_lerp = math.max(self.chase_motion_lerp - 0.4, 0)
-            self.image_xscale = master.image_xscale
-            --[[
-            if not gm.instance_exists(self.target) then
-                local x = (self.x + self.master.x) / 2
-                local y = (self.y + self.master.y) / 2
-                local new_target = gm.find_target_nearest(x, y, 2)
-                if new_target ~= -4 and self:distance_to_object(new_target) <= self.x_range then
-                    self.target = new_target
+            self.sprite_index = oSkillDrone.obj_sprite
+            local cached_id = self.cache_skill_pickup_id
+            if not Instance.exists(cached_id) then
+                local skill_pickup = gm._mod_instance_nearest(SkillPickup.skillPickup_object_index, self.x, self.y)
+                if skill_pickup ~= -4 and drone_skill_check(skill_pickup.skill_id) and skill_pickup.has_been_drone_pickup ~= 1 and
+                    is_in_range(self.x, self.y, skill_pickup.x, skill_pickup.y, self.y_range) then
+                    self.cache_skill_pickup_id = skill_pickup.id
+                    cached_id = skill_pickup.id
+                else
+                    self.cache_skill_pickup_id = -4
+                    cached_id = -4
                 end
-            end]]
-            local skill_pickup = gm._mod_instance_nearest(SkillPickup.skillPickup_object_index, self.x, self.y)
-            if skill_pickup ~= -4 then
-                if math.abs(self.x - skill_pickup.x) <= self.y_range and math.abs(self.y - skill_pickup.y) <=
-                    self.y_range then
-                    local slot_index = skill_pickup.slot_index
+            end
+            if Instance.exists(cached_id) then
+                local skill_pickup = gm.CInstance.instance_id_to_CInstance[cached_id]
+                if gm.point_distance(self.x, self.y, skill_pickup.x, skill_pickup.y) <= PICKUPRANGE then
                     local skill_id = skill_pickup.skill_id
                     gm.call("gml_Script_interactable_set_active", skill_pickup, self.value, skill_pickup, self.value, 1)
                     local x_range = Utils.skill_get_range(skill_id)
                     if self.x_range_min > x_range then
                         self.x_range_min = x_range
                     end
-                    return
+                else
+                    self.x = Utils.lerp(self.x, skill_pickup.x, self.chase_motion_lerp * 0.075)
+                    self.y = Utils.lerp(self.y, skill_pickup.y, self.chase_motion_lerp * 0.075)
+                    self.chase_motion_lerp = math.min(1.0, self.chase_motion_lerp + 0.4)
                 end
-                if skill_pickup.fake_target == nil then
-                    skill_pickup.fake_target = gm.instance_create(skill_pickup.x, skill_pickup.y + 80,
-                        FindTargetOverride.empty_object_index)
-                    skill_pickup.fake_target.parent = gm.struct_create()
-                    skill_pickup.fake_target.parent.bbox_bottom = skill_pickup.y
-                    Instance_ext.add_callback(skill_pickup, "pre_destroy", "destroy_fake_target",
-                        function(skill_pickup_)
-                            gm.instance_destroy(skill_pickup_.fake_target.id)
-                        end)
-                end
+            else
+                local lerp_factor = (1 - self.chase_motion_lerp) * 0.1111111111111111
+                self.x = Utils.lerp(self.x, master.ghost_x + self.xx, lerp_factor)
+                self.y = Utils.lerp(self.y, master.ghost_y + self.yy - 100 - DRONEOFFSET, lerp_factor) + self.yo
+                self.chase_motion_lerp = math.max(self.chase_motion_lerp - 0.4, 0)
+                self.image_xscale = master.image_xscale
             end
         elseif self.state == 1 then
             local target = self.target
             if Instance.exists(target) then
                 local target_parent = target.parent
                 self.x = Utils.lerp(self.x,
-                    Utils.lerp(Utils.clamp(self.master.x + self.xx, target_parent.bbox_left - self.x_range_min,
-                        target_parent.bbox_right + self.x_range_min), self.master.x + self.xx, 0.1),
+                    Utils.lerp(
+                        Utils.clamp(self.master.x + self.xx, target_parent.bbox_left - self.x_range_min - RANGEOFFSET,
+                            target_parent.bbox_right + self.x_range_min + RANGEOFFSET), self.master.x + self.xx, 0.1),
                     self.chase_motion_lerp * 0.075)
                 self.y = Utils.lerp(self.y,
                     Utils.lerp(
@@ -237,7 +219,7 @@ local function init()
             inst_wrapped:remove_callback(name)
             return
         end
-        
+
         local angle = slot_index * math.pi / 2
         local radius = 24
         local default_skill = Class.SKILL:get(skill_id)
@@ -259,6 +241,17 @@ local function init()
                     1)
             end
         end)
+    end)
+
+    SkillPickup.add_skill_diff("has_been_drone_pickup", function(result, skill)
+        result.has_been_drone_pickup = skill.has_been_drone_pickup
+    end)
+
+    SkillPickup.add_pre_local_drop_func(function(inst, skill)
+        if inst:get_object_index_self() ~= oSkillDrone.value then
+            return
+        end
+        skill.has_been_drone_pickup = 1
     end)
 end
 Initialize(init)
