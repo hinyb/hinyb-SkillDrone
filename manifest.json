@@ -1,0 +1,12 @@
+{
+	"name": "SkillDrone",
+	"version_number": "1.0.0",
+	"website_url": "",
+	"description": "",
+	"dependencies": [
+		"ReturnOfModding-ReturnOfModding-1.0.57",
+		"RoRRModdingToolkit-RoRR_Modding_Toolkit-1.2.10",
+		"MGReturns-ENVY-1.1.1",
+		"hinyb-Dropability-3.1.8"
+	]
+}
