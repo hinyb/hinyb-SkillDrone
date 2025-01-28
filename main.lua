@@ -65,8 +65,10 @@ local function init()
     local function is_in_range(x1, y1, x2, y2, range)
         return math.abs(x1 - x2) <= range and math.abs(y1 - y2) <= range
     end
-    local moon = Resources.sprite_load("hinyb", "moon", _ENV["!plugins_mod_folder_path"] .. "/sprites/moon.png")
-    local star = Resources.sprite_load("hinyb", "star", _ENV["!plugins_mod_folder_path"] .. "/sprites/star.png")
+    local moon = Resources.sprite_load("hinyb", "moon", _ENV["!plugins_mod_folder_path"] .. "/sprites/moon.png", 1, 16,
+        16)
+    local star = Resources.sprite_load("hinyb", "star", _ENV["!plugins_mod_folder_path"] .. "/sprites/star.png", 1, 16,
+        16)
     -- this mod don't relay on SkillChest
     -- so I have to do this
     local oSkillDrone_skill_packet = Packet.new()
@@ -108,15 +110,6 @@ local function init()
         CompatibilityPatch.set_compat(self.value)
         self.x_range = 1200
         self.x_range_min = 40
-        --gm.actor_skill_set(self.value, 0, 2)
-        if not Net.is_client() then
-            local slot_index = Utils.get_random(0, 3)
-            local skill_id = get_drone_random_skill_id()
-            gm.actor_skill_set(self.value, slot_index, skill_id)
-            if Net.is_host() then
-                skill_drone_skill_message_create(self.value, slot_index, skill_id):send_to_all()
-            end
-        end
         self.y_offset = 0
         self.image_alpha = 0.5
         self.cache_skill_pickup = -4
@@ -139,6 +132,15 @@ local function init()
                 end
             end
         end)
+
+        -- custom drone will create twice
+        -- terrible solution, need time to improve
+        local callstack = Array.wrap(gm.debug_get_callstack())
+        for i = 0, callstack:size() - 1 do
+            if string.find(callstack:get(i), "net_packet_create_object_read") then
+                self:destroy()
+            end
+        end
     end)
     oSkillDrone:onStep(function(self)
         local master = self.master
@@ -170,7 +172,7 @@ local function init()
 
         if self.state == 0 then
             self.sprite_index = oSkillDrone.obj_sprite
-            if self.is_local == 1 and not Instance.exists(self.cache_skill_pickup) then
+            if gm.bool(self.is_local) and not Instance.exists(self.cache_skill_pickup) then
                 local skill_pickup = gm._mod_instance_nearest(SkillPickup.skillPickup_object_index, self.x, self.y)
                 if skill_pickup ~= -4 and drone_skill_check(skill_pickup.skill_id) and
                     skill_pickup.has_been_drone_pickup ~= 1 and
@@ -185,7 +187,8 @@ local function init()
             end
             local skill_pickup = self.cache_skill_pickup
             if Instance.exists(skill_pickup) then
-                if self.is_local == 1 and gm.point_distance(self.x, self.y, skill_pickup.x, skill_pickup.y) <= PICKUPRANGE then
+                if gm.bool(self.is_local) and gm.point_distance(self.x, self.y, skill_pickup.x, skill_pickup.y) <=
+                    PICKUPRANGE then
                     gm.call("gml_Script_interactable_set_active", skill_pickup.value, self.value, skill_pickup.value,
                         self.value, 1)
                 else
@@ -196,7 +199,7 @@ local function init()
             else
                 local lerp_factor = (1 - self.chase_motion_lerp) * 0.1111111111111111
                 self.x = Utils.lerp(self.x, master.ghost_x + self.xx, lerp_factor)
-                self.y = Utils.lerp(self.y, master.ghost_y + self.yy - 100 - DRONEOFFSET, lerp_factor) + self.yo
+                self.y = Utils.lerp(self.y, master.ghost_y + self.yy - 40 - DRONEOFFSET, lerp_factor) + self.yo
                 self.chase_motion_lerp = math.max(self.chase_motion_lerp - 0.4, 0)
                 self.image_xscale = master.image_xscale
             end
@@ -269,9 +272,9 @@ local function init()
             local x = actor.x + radius * math.cos(angle)
             local y = actor.y + radius * math.sin(angle) + DRONEOFFSET
             if skill.stock < required_stock then
-                gm.draw_sprite_ext(sprite_index, image_index, x + 5, y + 5, SKILLSCALE, SKILLSCALE, 0.0, Color.GRAY, 1)
+                gm.draw_sprite_ext(sprite_index, image_index, x - 5, y - 5, SKILLSCALE, SKILLSCALE, 0.0, Color.GRAY, 1)
             else
-                gm.draw_sprite_ext(sprite_index, image_index, x + 5, y + 5, SKILLSCALE, SKILLSCALE, 0.0, Color.WHITE, 1)
+                gm.draw_sprite_ext(sprite_index, image_index, x - 5, y - 5, SKILLSCALE, SKILLSCALE, 0.0, Color.WHITE, 1)
             end
         end)
     end)
@@ -297,25 +300,36 @@ local function init()
         self.child = oSkillDrone.value
         self:interactable_init_cost(self.value, 0, 40)
         self:interactable_init_name()
+        local callstack = Array.wrap(gm.debug_get_callstack())
+        for i = 0, callstack:size() - 1 do
+            if string.find(callstack:get(i), "mapobject_spawn") then
+                local slot_index = Utils.get_random(0, 3)
+                local skill_id = get_drone_random_skill_id()
+                Instance_ext.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(actor)
+                    gm.actor_skill_set(actor.spawned_drone, slot_index, skill_id)
+                    skill_drone_skill_message_create(actor.spawned_drone, slot_index, skill_id):send_to_all()
+                end)
+                break
+            end
+        end
     end)
 
-    -- custom drone will create twice
-    -- terrible solution, need time to improve
-    local flag = false
-    local cache_drone = -4
-    gm.pre_script_hook(101374, function(self, other, result, args)
-        flag = true
-    end)
-    gm.post_script_hook(101374, function(self, other, result, args)
-        flag = false
-        if type(cache_drone) ~= "number" then
-            gm.instance_destroy(cache_drone.id)
-        end
-    end)
-    gm.post_script_hook(gm.constants.instance_create, function(self, other, result, args)
-        if flag and args[3].value == oSkillDrone.value then
-            cache_drone = result.value
-        end
-    end)
+    -- Create Interactable Card
+    local card = Interactable_Card.new("hinyb", "oSkillDroneItem")
+    card.object_id = oSkillDroneItem.value
+    card.spawn_with_sacrifice = true
+    card.spawn_cost = 80
+    card.spawn_weight = 6
+    card.default_spawn_rarity_override = 1
+
+    -- Add Interactable Card to stages
+    local stages = Stage.find_all()
+    for _, stage in ipairs(stages) do
+        stage:add_interactable(card)
+    end
 end
 Initialize(init)
+memory.dynamic_hook_mid("pInteractableDrone_add_spawned_drone", {"rax", "[rbp+80h+10h]"}, {"RValue*", "CInstance*"}, 0,
+    gm.get_object_function_address("gml_Object_pInteractableDrone_Step_2"):add(1007), function(args)
+        args[2].spawned_drone = args[1].value
+    end)
