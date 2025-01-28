@@ -287,7 +287,9 @@ local function init()
                 local skill_id = get_drone_random_skill_id()
                 Instance_ext.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(actor)
                     gm.actor_skill_set(actor.spawned_drone, slot_index, skill_id)
-                    skill_drone_skill_message_create(actor.spawned_drone, slot_index, skill_id):send_to_all()
+                    if Net.is_host() then
+                        skill_drone_skill_message_create(actor.spawned_drone, slot_index, skill_id):send_to_all()
+                    end
                 end)
                 break
             end
