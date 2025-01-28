@@ -1,9 +1,8 @@
-# hinyb-LendDrone
-* This is a small mod that adds the ability to lend your drone to your friend. It cost gold when lend(Configurable).
+# hinyb-SkillDrone
+* This is a small mod that adds a new type of drone that can pick up your skills.
+* If you find any bug or compatibility issues, please report it to github.
+* This mod is still missing many textures and sound effects, but I'm lazy and not good at these, so they may not be added.
 
-## How to use
-1. Place your mouse on the drone you want to lend.
-2. Press Delete to lend your drone to your friend.
 ---
 
 ## How to binding 
@@ -11,7 +10,7 @@
 * [List of possible keys for the toggle](https://oprypin.github.io/crystal-imgui/ImGui/ImGuiKey.html)
 
 ## Feedback
-https://github.com/hinyb/hinyb-LendDrone/issues
+https://github.com/hinyb/hinyb-SkillDrone/issues
 
 ## Installation Instructions
 
