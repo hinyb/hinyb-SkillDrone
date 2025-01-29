@@ -92,7 +92,7 @@ local function init()
         self.x_range_min = 40
         self.y_offset = 0
         self.image_alpha = 0.5
-        self.cache_skill_pickup = -4
+        self.cache_skill_pickup_id = -4
         self.interactable_child = oSkillDroneItem.value
 
         -- because the sprite is empty
@@ -152,21 +152,22 @@ local function init()
 
         if self.state == 0 then
             self.sprite_index = oSkillDrone.obj_sprite
-            if gm.bool(self.is_local) and not Instance.exists(self.cache_skill_pickup) then
+            if gm.bool(self.is_local) and not Instance.exists(self.cache_skill_pickup_id) then
                 local skill_pickup = gm._mod_instance_nearest(SkillPickup.skillPickup_object_index, self.x, self.y)
                 if skill_pickup ~= -4 and drone_skill_check(skill_pickup.skill_id) and
                     skill_pickup.has_been_drone_pickup ~= 1 and
                     is_in_range(self.x, self.y, skill_pickup.x, skill_pickup.y, self.y_range) then
-                    self.cache_skill_pickup = skill_pickup
+                    self.cache_skill_pickup_id = skill_pickup.id
                     if Net.is_host() then
                         skill_drone_pick_message_create(self.value, skill_pickup):send_to_all()
                     end
                 else
-                    self.cache_skill_pickup = -4
+                    self.cache_skill_pickup_id = -4
                 end
             end
-            local skill_pickup = self.cache_skill_pickup
+            local skill_pickup = self.cache_skill_pickup_id
             if Instance.exists(skill_pickup) then
+                skill_pickup = gm.CInstance.instance_id_to_CInstance[skill_pickup]
                 if gm.bool(self.is_local) and gm.point_distance(self.x, self.y, skill_pickup.x, skill_pickup.y) <=
                     PICKUPRANGE then
                     gm.call("gml_Script_interactable_set_active", skill_pickup.value, self.value, skill_pickup.value,
