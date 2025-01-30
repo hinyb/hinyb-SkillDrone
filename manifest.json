@@ -1,12 +1,12 @@
 {
 	"name": "SkillDrone",
-	"version_number": "1.0.0",
+	"version_number": "1.0.1",
 	"website_url": "https://github.com/hinyb/hinyb-SkillDrone",
 	"description": "Add a new type of drone that can pick up your skills",
 	"dependencies": [
 		"ReturnOfModding-ReturnOfModding-1.0.58",
 		"RoRRModdingToolkit-RoRR_Modding_Toolkit-1.2.13",
 		"MGReturns-ENVY-1.1.1",
-		"hinyb-Dropability-3.1.11"
+		"hinyb-Dropability-3.1.12"
 	]
 }
