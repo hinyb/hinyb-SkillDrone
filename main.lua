@@ -8,19 +8,25 @@ local SKILLSCALE = 0.5
 local function init()
     local get_random = Utils.random_skill_id()
     local drone_skill_blacklist = {
-        [129] = true, -- drifterX -- It's difficult to form a combo. So I decided blacklist it.
-        [130] = true, -- drifterC
-        [131] = true, -- drifterV
-        [132] = true, -- drifterVBoosted
-        [133] = true, -- drifterX2
-        [134] = true, -- drifterC2
-        [135] = true, -- drifterV2
-        [136] = true, -- drifterV2Boosted
-        [141] = true, -- robomandoV
-        [98] = true -- loaderX2 -- Drone can't hit the ground
+        [60] = true, -- minerV -- Drone can't hit the ground
+        [61] = true, -- minerVBoosted
+        [98] = true, -- loaderX2
+        [198] = true, -- monsterSwiftZ
+        [192] = true, -- monsterShamGZ
+        [186] = true -- monsterMacrobeZ
+    }
+    local drone_skill_range_fix_list = {
+        [17] = true, -- enforcerX2
+        [18] = true, -- enforcerX3
+        [63] = true, -- minerX2
+        [72] = true, -- sniperZ2
+        [85] = true, -- mercenaryC
+        [145] = true, -- monsterRiderBoarZ
+        [171] = true, -- monsterImpGX
+        [202] = true -- umbraDash
     }
     local function drone_skill_check(skill_id)
-        return Utils.is_damage_skill(skill_id) and not drone_skill_blacklist[skill_id]
+        return (Utils.is_damage_skill(skill_id) or Utils.is_summon_skill(skill_id)) and not drone_skill_blacklist[skill_id] and not Utils.is_skill_need_scrap_bar(skill_id)
     end
     local function get_drone_random_skill_id()
         local random_skill_id = get_random()
@@ -33,8 +39,9 @@ local function init()
         local x_range_min = math.huge
         for slot_index = 0, 3 do
             local skill = gm.array_get(inst.skills, slot_index).active_skill
-            if skill.skill_id ~= 0 then
-                local x_range = Utils.skill_get_range(skill.skill_id)
+            local skill_id = skill.skill_id
+            if skill_id ~= 0 then
+                local x_range = drone_skill_range_fix_list[skill_id] or Utils.skill_get_range(skill_id)
                 if x_range_min > x_range then
                     x_range_min = x_range
                 end
@@ -80,6 +87,15 @@ local function init()
     local oSkillDroneItem = Object.new("hinyb", "oSkillDroneItem", Object.PARENT.interactableDrone)
     local oSkillDrone = Object.new("hinyb", "oSkillDrone", Object.PARENT.drone)
     oSkillDrone:onCreate(function(self)
+        -- custom drone will create twice
+        -- terrible solution, need time to improve
+        local callstack = Array.wrap(gm.debug_get_callstack())
+        for i = 0, callstack:size() - 1 do
+            if string.find(callstack:get(i), "net_packet_create_object_read") then
+                self:destroy()
+            end
+        end
+
         -- need to draw a sprite, but I am lazy.
         self.sprite_idle = self.sprite_index
         self.sprite_idle_broken = self.sprite_index
@@ -112,15 +128,6 @@ local function init()
                 end
             end
         end)
-
-        -- custom drone will create twice
-        -- terrible solution, need time to improve
-        local callstack = Array.wrap(gm.debug_get_callstack())
-        for i = 0, callstack:size() - 1 do
-            if string.find(callstack:get(i), "net_packet_create_object_read") then
-                self:destroy()
-            end
-        end
     end)
     oSkillDrone:onStep(function(self)
         local master = self.master
@@ -154,7 +161,7 @@ local function init()
             self.sprite_index = oSkillDrone.obj_sprite
             if gm.bool(self.is_local) and not Instance.exists(self.cache_skill_pickup_id) then
                 local skill_pickup = gm._mod_instance_nearest(SkillPickup.skillPickup_object_index, self.x, self.y)
-                if skill_pickup ~= -4 and drone_skill_check(skill_pickup.skill_id) and
+                if skill_pickup ~= -4 and not drone_skill_blacklist[skill_pickup.skill_id] and
                     skill_pickup.has_been_drone_pickup ~= 1 and
                     is_in_range(self.x, self.y, skill_pickup.x, skill_pickup.y, self.y_range) then
                     self.cache_skill_pickup_id = skill_pickup.id
@@ -170,8 +177,7 @@ local function init()
                 skill_pickup = gm.CInstance.instance_id_to_CInstance[skill_pickup]
                 if gm.bool(self.is_local) and gm.point_distance(self.x, self.y, skill_pickup.x, skill_pickup.y) <=
                     PICKUPRANGE then
-                    gm.call("gml_Script_interactable_set_active", skill_pickup.value, self.value, skill_pickup.value,
-                        self.value, 1)
+                    gm.call("gml_Script_interactable_set_active", skill_pickup, self.value, skill_pickup, self.value, 1)
                 else
                     self.x = Utils.lerp(self.x, skill_pickup.x, self.chase_motion_lerp * 0.075)
                     self.y = Utils.lerp(self.y, skill_pickup.y, self.chase_motion_lerp * 0.075)
@@ -193,10 +199,9 @@ local function init()
                         Utils.clamp(self.master.x + self.xx, target_parent.bbox_left - self.x_range_min - RANGEOFFSET,
                             target_parent.bbox_right + self.x_range_min + RANGEOFFSET), self.master.x + self.xx, 0.1),
                     self.chase_motion_lerp * 0.075)
-                self.y = Utils.lerp(self.y,
-                    Utils.lerp(
-                        Utils.clamp(self.master.y + self.y_offset, target_parent.bbox_top, target_parent.bbox_bottom),
-                        self.master.y + self.yy, 0.1) + self.yo, self.chase_motion_lerp * 0.075)
+                -- self.y = Utils.lerp(self.y, Utils.lerp(Utils.clamp(self.master.y + self.y_offset, target_parent.bbox_top, target_parent.bbox_bottom), self.master.y + self.yy, 0.1) + self.yo, self.chase_motion_lerp * 0.075)
+                self.y = Utils.lerp(self.y, Utils.lerp(target_parent.y, self.master.y + self.yy, 0.1) + self.yo,
+                    self.chase_motion_lerp * 0.075)
                 self.chase_motion_lerp = math.min(1.0, self.chase_motion_lerp + 0.4)
                 if self.x > target_parent.x then
                     self.image_xscale = -1
