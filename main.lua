@@ -116,11 +116,11 @@ local function init()
 
         -- I just find all skills which use hold_facing_direction_xscale have this bug.
         -- Need time to find a better solution.
-        Instance_ext.add_callback(self.value, "pre_skill_activate", "hold_facing_direction_xscale_fix",
+        InstanceExtManager.add_callback(self.value, "pre_skill_activate", "hold_facing_direction_xscale_fix",
             function(inst, slot_index)
                 inst.hold_facing_direction_xscale = inst.image_xscale
             end)
-        Instance_ext.add_callback(self.value, "pre_actor_set_dead", "drop_skill_pickup", function(inst_)
+        InstanceExtManager.add_callback(self.value, "pre_actor_set_dead", "drop_skill_pickup", function(inst_)
             for slot_index = 0, 3 do
                 local skill = gm.array_get(inst_.skills, slot_index).active_skill
                 if skill.skill_id ~= 0 then
@@ -228,7 +228,7 @@ local function init()
     oSkillDrone.obj_sprite = gm.sprite_create_from_surface(my_surface, 0, 0, 32, 32, false, false, 64, 64)
     gm.surface_reset_target()
     gm.surface_free(my_surface)
-    gm.post_script_hook(gm.constants.actor_skill_set, function(self, other, result, args)
+    HookSystem.post_script_hook(gm.constants.actor_skill_set, function(self, other, result, args)
         local inst_wrapped = Instance.wrap(args[1].value)
         local object_index = inst_wrapped:get_object_index_self()
         if object_index ~= oSkillDrone.value then
@@ -291,7 +291,7 @@ local function init()
             if string.find(callstack:get(i), "mapobject_spawn") then
                 local slot_index = Utils.get_random(0, 3)
                 local skill_id = get_drone_random_skill_id()
-                Instance_ext.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(actor)
+                InstanceExtManager.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(actor)
                     gm.actor_skill_set(actor.spawned_drone, slot_index, skill_id)
                     if Net.is_host() then
                         skill_drone_skill_message_create(actor.spawned_drone, slot_index, skill_id):send_to_all()
