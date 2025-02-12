@@ -1,3 +1,6 @@
+v2.0.0
+* API update.
+
 v1.0.2
 * Fix SkillDrone will spawn with unuseable skills.
 
