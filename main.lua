@@ -271,9 +271,16 @@ local function init()
 
     SkillPickup.add_pre_local_drop_func(function(inst, skill)
         if inst:get_object_index_self() ~= oSkillDrone.value then
-            return
+            skill.has_been_drone_pickup = 0
+        else
+            skill.has_been_drone_pickup = 1
         end
-        skill.has_been_drone_pickup = 1
+    end)
+
+    SkillPickup.add_pre_create_func(function (skillPickup, params, x, y)
+        if not skillPickup.has_been_drone_pickup then
+            skillPickup.has_been_drone_pickup = 1
+        end
     end)
 
     oSkillDroneItem.obj_sprite = moon
@@ -289,7 +296,7 @@ local function init()
         local callstack = Array.wrap(gm.debug_get_callstack())
         for i = 0, callstack:size() - 1 do
             if string.find(callstack:get(i), "mapobject_spawn") then
-                local slot_index = Utils.get_random(0, 3)
+                local slot_index = math.random(0, 3)
                 local skill_id = get_drone_random_skill_id()
                 InstanceExtManager.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(actor)
                     gm.actor_skill_set(actor.spawned_drone, slot_index, skill_id)
