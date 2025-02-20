@@ -128,6 +128,10 @@ local function init()
                 end
             end
         end)
+
+        -- I just find this bug.
+        self.persistent = 1
+        self:instance_sync()
     end)
     oSkillDrone:onStep(function(self)
         local master = self.master
