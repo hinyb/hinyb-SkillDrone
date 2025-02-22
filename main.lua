@@ -85,7 +85,9 @@ local function init()
         return sync_message
     end
     local oSkillDroneItem = Object.new("hinyb", "oSkillDroneItem", Object.PARENT.interactableDrone)
+    gm.constants.oSkillDroneItem = oSkillDroneItem.value
     local oSkillDrone = Object.new("hinyb", "oSkillDrone", Object.PARENT.drone)
+    gm.constants.oSkillDrone = oSkillDrone.value
     oSkillDrone:onCreate(function(self)
         -- custom drone will create twice
         -- terrible solution, need time to improve
@@ -164,7 +166,7 @@ local function init()
         if self.state == 0 then
             self.sprite_index = oSkillDrone.obj_sprite
             if gm.bool(self.is_local) and not Instance.exists(self.cache_skill_pickup_id) then
-                local skill_pickup = gm._mod_instance_nearest(SkillPickup.skillPickup_object_index, self.x, self.y)
+                local skill_pickup = gm._mod_instance_nearest(gm.constants.oSkillPickup, self.x, self.y)
                 if skill_pickup ~= -4 and not drone_skill_blacklist[skill_pickup.skill_id] and
                     skill_pickup.has_been_drone_pickup ~= 1 and
                     is_in_range(self.x, self.y, skill_pickup.x, skill_pickup.y, self.y_range) then
