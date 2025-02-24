@@ -304,7 +304,7 @@ local function init()
             if string.find(callstack:get(i), "mapobject_spawn") then
                 local slot_index = math.random(0, 3)
                 local skill_id = get_drone_random_skill_id()
-                InstanceExtManager.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(actor)
+                InstanceExtManager.add_callback(self.value, "post_instance_destroy", "spawn_with_skill", function(actor)
                     gm.actor_skill_set(actor.spawned_drone, slot_index, skill_id)
                     if Net.is_host() then
                         skill_drone_skill_message_create(actor.spawned_drone, slot_index, skill_id):send_to_all()
