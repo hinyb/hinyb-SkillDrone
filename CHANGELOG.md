@@ -1,4 +1,8 @@
-v2.0.0
+v1.1.1
+* Fix compatibility issues with SkillChest.
+* Fix drones will disappear when entering 
+
+v1.1.0
 * API update.
 
 v1.0.2
