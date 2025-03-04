@@ -56,22 +56,6 @@ local function init()
         16)
     local star = Resources.sprite_load("hinyb", "star", _ENV["!plugins_mod_folder_path"] .. "/sprites/star.png", 1, 16,
         16)
-    -- this mod don't relay on SkillChest
-    -- so I have to do this
-    local oSkillDrone_skill_packet = Packet.new()
-    oSkillDrone_skill_packet:onReceived(function(message, player)
-        local drone = message:read_instance().value
-        local slot_index = message:read_byte()
-        local skill_id = message:read_ushort()
-        gm.actor_skill_set(drone, slot_index, skill_id)
-    end)
-    local skill_drone_skill_message_create = function(drone, slot_index, skill_id)
-        local sync_message = oSkillDrone_skill_packet:message_begin()
-        sync_message:write_instance(drone)
-        sync_message:write_byte(slot_index)
-        sync_message:write_ushort(skill_id)
-        return sync_message
-    end
     local oSkillDrone_pick_packet = Packet.new()
     oSkillDrone_pick_packet:onReceived(function(message, player)
         local drone = message:read_instance().value
@@ -304,11 +288,8 @@ local function init()
             if string.find(callstack:get(i), "mapobject_spawn") then
                 local slot_index = math.random(0, 3)
                 local skill_id = get_drone_random_skill_id()
-                InstanceExtManager.add_callback(self.value, "post_instance_destroy", "spawn_with_skill", function(actor)
-                    gm.actor_skill_set(actor.spawned_drone, slot_index, skill_id)
-                    if Net.is_host() then
-                        skill_drone_skill_message_create(actor.spawned_drone, slot_index, skill_id):send_to_all()
-                    end
+                InstanceExtManager.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(inst)
+                    Utils.actor_skill_set_sync(inst.spawned_drone, slot_index, skill_id)
                 end)
                 break
             end

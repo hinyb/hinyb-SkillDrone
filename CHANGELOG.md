@@ -1,3 +1,6 @@
+v1.1.2
+* Fix drones spawning without a skill.
+
 v1.1.1
 * Fix compatibility issues with SkillChest.
 * Fix drones will disappear when entering 
