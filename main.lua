@@ -275,14 +275,18 @@ local function init()
 
     oSkillDroneItem.obj_sprite = moon
     oSkillDroneItem:onCreate(function(self)
-        self:interactable_init(true)
-        self.active = 0
-        self.value.value = 60
-        self.image_speed = 0
-        self.interact_scroll_index = 3
+        -- self:interactable_init(true)
+        -- self.active = 0
+        -- I think it is used for xp
+        -- self.value.value = 60
+        -- self.image_speed = 0
+        -- used for outline_index interactable_draw_self
+        -- self.interact_scroll_index = 3
+        -- used for spawn child
         self.child = oSkillDrone.value
         self:interactable_init_cost(self.value, 0, 40)
-        self:interactable_init_name()
+        -- self:interactable_init_name()
+        
         local callstack = Array.wrap(gm.debug_get_callstack())
         for i = 0, callstack:size() - 1 do
             if string.find(callstack:get(i), "mapobject_spawn") then
