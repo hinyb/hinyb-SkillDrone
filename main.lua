@@ -1,11 +1,11 @@
-mods["RoRRModdingToolkit-RoRR_Modding_Toolkit"].auto(true)
+mods["ReturnsAPI-ReturnsAPI"].auto({mp = true})
 mods["hinyb-Dropability"].auto()
 
 local DRONEOFFSET = 48
 local RANGEOFFSET = -40
 local PICKUPRANGE = 40
 local SKILLSCALE = 0.5
-local function init()
+Initialize.add_hotloadable(function ()
     local get_random = Utils.random_skill_id()
     local drone_skill_blacklist = {
         [60] = true, -- minerV -- Drone can't hit the ground
@@ -52,27 +52,24 @@ local function init()
     local function is_in_range(x1, y1, x2, y2, range)
         return math.abs(x1 - x2) <= range and math.abs(y1 - y2) <= range
     end
-    local moon = Resources.sprite_load("hinyb", "moon", _ENV["!plugins_mod_folder_path"] .. "/sprites/moon.png", 1, 16,
-        16)
-    local star = Resources.sprite_load("hinyb", "star", _ENV["!plugins_mod_folder_path"] .. "/sprites/star.png", 1, 16,
-        16)
-    local oSkillDrone_pick_packet = Packet.new()
-    oSkillDrone_pick_packet:onReceived(function(message, player)
-        local drone = message:read_instance().value
-        local skill_pickup = message:read_instance().value
+    local moon = Sprite.new("moon", _ENV["!plugins_mod_folder_path"] .. "/sprites/moon.png", 1, 16,
+        16).value
+    local star = Sprite.new("star", _ENV["!plugins_mod_folder_path"] .. "/sprites/star.png", 1, 16,
+        16).value
+    local oSkillDrone_pick_packet = Packet.new("oSkillDrone_pick_packet")
+    oSkillDrone_pick_packet:set_serializers(function (buffer, drone, skill_pickup)
+        buffer:write_instance(drone)
+        buffer:write_instance(skill_pickup)
+    end, function (buffer, player)
+        local drone = buffer:read_instance().value
+        local skill_pickup = buffer:read_instance().value
         drone.cache_skill_pickup = skill_pickup
     end)
-    local skill_drone_pick_message_create = function(drone, skill_pickup)
-        local sync_message = oSkillDrone_pick_packet:message_begin()
-        sync_message:write_instance(drone)
-        sync_message:write_instance(skill_pickup)
-        return sync_message
-    end
-    local oSkillDroneItem = Object.new("hinyb", "oSkillDroneItem", Object.PARENT.interactableDrone)
+    local oSkillDroneItem = Object.new("oSkillDroneItem", Object.Parent.INTERACTABLE_DRONE)
     gm.constants.oSkillDroneItem = oSkillDroneItem.value
-    local oSkillDrone = Object.new("hinyb", "oSkillDrone", Object.PARENT.drone)
+    local oSkillDrone = Object.new("oSkillDrone", Object.Parent.DRONE)
     gm.constants.oSkillDrone = oSkillDrone.value
-    oSkillDrone:onCreate(function(self)
+    Callback.add(oSkillDrone.on_create, function(self)
         -- custom drone will create twice
         -- terrible solution, need time to improve
         local callstack = Array.wrap(gm.debug_get_callstack())
@@ -119,7 +116,7 @@ local function init()
         self.persistent = 1
         self:instance_sync()
     end)
-    oSkillDrone:onStep(function(self)
+    Callback.add(oSkillDrone.on_step, function(self)
         local master = self.master
         if not Instance.exists(master) then
             return
@@ -140,7 +137,7 @@ local function init()
         local image_number = self.image_number
         if self.state_strafe_half == 1.0 or math.abs(image_index - image_number + 1) <= 0.0001 or image_index >=
             image_number - 1 then
-            self.sprite_index = oSkillDrone.obj_sprite
+            self.sprite_index = oSkillDrone.OBJ_SPRITE
         end
         self.z_skill = 0
         self.x_skill = 0
@@ -148,15 +145,15 @@ local function init()
         self.v_skill = 0
 
         if self.state == 0 then
-            self.sprite_index = oSkillDrone.obj_sprite
+            self.sprite_index = oSkillDrone.OBJ_SPRITE
             if gm.bool(self.is_local) and not Instance.exists(self.cache_skill_pickup_id) then
                 local skill_pickup = gm._mod_instance_nearest(gm.constants.oSkillPickup, self.x, self.y)
                 if skill_pickup ~= -4 and not drone_skill_blacklist[skill_pickup.skill_id] and
                     skill_pickup.has_been_drone_pickup ~= 1 and
                     is_in_range(self.x, self.y, skill_pickup.x, skill_pickup.y, self.y_range) then
                     self.cache_skill_pickup_id = skill_pickup.id
-                    if Net.is_host() then
-                        skill_drone_pick_message_create(self.value, skill_pickup):send_to_all()
+                    if Net.host then
+                        oSkillDrone_pick_packet(self.value, skill_pickup):send_to_all()
                     end
                 else
                     self.cache_skill_pickup_id = -4
@@ -167,7 +164,7 @@ local function init()
                 skill_pickup = gm.CInstance.instance_id_to_CInstance[skill_pickup]
                 if gm.bool(self.is_local) and gm.point_distance(self.x, self.y, skill_pickup.x, skill_pickup.y) <=
                     PICKUPRANGE then
-                    gm.call("gml_Script_interactable_set_active", skill_pickup, self.value, skill_pickup, self.value, 1)
+                    gm.call("interactable_set_active", skill_pickup, self.value, skill_pickup, self.value, 1)
                 else
                     self.x = Utils.lerp(self.x, skill_pickup.x, self.chase_motion_lerp * 0.075)
                     self.y = Utils.lerp(self.y, skill_pickup.y, self.chase_motion_lerp * 0.075)
@@ -210,17 +207,17 @@ local function init()
             end
         end
     end)
-    oSkillDrone:onDraw(function(self)
+    Callback.add(oSkillDrone.on_draw, function(self)
         gm.draw_sprite_ext(moon, 0, self.x, self.y + DRONEOFFSET, 0.6, 0.6, 0.0, Color.WHITE, 1)
     end)
     local my_surface = gm.surface_create(32, 32)
     gm.surface_set_target(my_surface)
-    oSkillDrone.obj_sprite = gm.sprite_create_from_surface(my_surface, 0, 0, 32, 32, false, false, 64, 64)
+    oSkillDrone:set_sprite(gm.sprite_create_from_surface(my_surface, 0, 0, 32, 32, false, false, 64, 64))
     gm.surface_reset_target()
     gm.surface_free(my_surface)
     HookSystem.post_script_hook(gm.constants.actor_skill_set, function(self, other, result, args)
         local inst_wrapped = Instance.wrap(args[1].value)
-        local object_index = inst_wrapped:get_object_index_self()
+        local object_index = inst_wrapped:get_object_index()
         if object_index ~= oSkillDrone.value then
             return
         end
@@ -229,7 +226,7 @@ local function init()
         inst_wrapped.x_range_min = get_x_range_min(inst_wrapped.value)
         local name = "star_draw" .. Utils.to_string_with_floor(slot_index)
         if skill_id == 0 then
-            inst_wrapped:remove_callback(name)
+            gm.event_hook_post_remove(inst_wrapped.value, gm.constants.ev_draw, 0, name)
             return
         end
 
@@ -241,9 +238,9 @@ local function init()
         local cooldown = default_skill:get(6)
         local angular_speed = 1 / math.log(cooldown) * 0.05
         local required_stock = default_skill:get(11)
-        inst_wrapped:remove_callback(name)
+        gm.event_hook_post_remove(inst_wrapped.value, gm.constants.ev_draw, 0, name)
         local skill = inst_wrapped:get_active_skill(slot_index)
-        inst_wrapped:add_callback("onPostDraw", name, function(actor)
+        gm.event_hook_post_add(inst_wrapped.value, gm.constants.ev_draw, 0, name, function (actor)
             angle = angle + angular_speed
             local x = actor.x + radius * math.cos(angle)
             local y = actor.y + radius * math.sin(angle) + DRONEOFFSET
@@ -260,7 +257,7 @@ local function init()
     end)
 
     SkillPickup.add_pre_local_drop_func(function(inst, skill)
-        if inst:get_object_index_self() ~= oSkillDrone.value then
+        if inst:get_object_index() ~= oSkillDrone.value then
             skill.has_been_drone_pickup = 0
         else
             skill.has_been_drone_pickup = 1
@@ -273,8 +270,8 @@ local function init()
         end
     end)
 
-    oSkillDroneItem.obj_sprite = moon
-    oSkillDroneItem:onCreate(function(self)
+    oSkillDroneItem:set_sprite(moon)
+    Callback.add(oSkillDroneItem.on_create, function(self)
         -- self:interactable_init(true)
         -- self.active = 0
         -- I think it is used for xp
@@ -292,7 +289,7 @@ local function init()
             if string.find(callstack:get(i), "mapobject_spawn") then
                 local slot_index = math.random(0, 3)
                 local skill_id = get_drone_random_skill_id()
-                InstanceExtManager.add_callback(self.value, "pre_destroy", "spawn_with_skill", function(inst)
+                gm.event_hook_pre_add(self.value, gm.constants.ev_destroy, 0, "spawn_with_skill", function (inst)
                     Utils.actor_skill_set_sync(inst.spawned_drone, slot_index, skill_id)
                 end)
                 break
@@ -301,7 +298,7 @@ local function init()
     end)
 
     -- Create Interactable Card
-    local card = Interactable_Card.new("hinyb", "oSkillDroneItem")
+    local card = InteractableCard.new("oSkillDroneItem")
     card.object_id = oSkillDroneItem.value
     card.spawn_with_sacrifice = true
     card.spawn_cost = 80
@@ -313,9 +310,12 @@ local function init()
     for _, stage in ipairs(stages) do
         stage:add_interactable(card)
     end
-end
-Initialize(init)
+end)
 memory.dynamic_hook_mid("pInteractableDrone_add_spawned_drone", {"rax", "[rbp+80h+10h]"}, {"RValue*", "CInstance*"}, 0,
-    gm.get_object_function_address("gml_Object_pInteractableDrone_Step_2"):add(1007), function(args)
+    gm.get_object_function_address("gml_Object_pInteractableDrone_Step_2"):add(1344), function(args)
         args[2].spawned_drone = args[1].value
+    end)
+memory.dynamic_hook_mid("__rpc_drone_upgrade_implementation__fix", {"rdx", "[r14+8h]"}, {"RValue*", "RValue*"}, 0,
+    gm.get_script_function_address(gm.constants.__rpc_drone_upgrade_implementation__):add(913), function(args)
+        args[1].value = args[2].value:get_object_index_self()
     end)

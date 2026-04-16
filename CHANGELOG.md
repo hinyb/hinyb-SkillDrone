@@ -1,3 +1,6 @@
+v2.0.0
+* Update to ReturnsAPI
+
 v1.1.2
 * Fix drones spawning without a skill.
 
